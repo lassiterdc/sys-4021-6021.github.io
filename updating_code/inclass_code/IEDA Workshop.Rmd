@@ -1,0 +1,33 @@
+---
+title: "Introduction to Exploratory Data Analysis in R"
+author: "Angel Vela, Daniel Lassiter, Katherine Korngiebel"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message=FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+## mpg Data
+
+```{r mpg data}
+#load the mpg data from ggplot2
+mpg <- ggplot2::mpg
+
+#Display the top rows of the dataset
+head(mpg)
+```
+
+## mpg Bar Plot
+
+Bar plot showing number of entries per car manufacturer:
+
+```{r pressure, echo=FALSE}
+ggplot(mpg, aes(x = manufacturer)) + geom_bar(color = "blue",fill = "orange")
+```

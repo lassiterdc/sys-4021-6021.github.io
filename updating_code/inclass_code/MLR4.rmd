@@ -1,0 +1,283 @@
+---
+pdf_document: default
+title: "Multiple Linear Regression 4"
+abstract: |
+  This is the code for Transformations, 
+  Qualitative Variables & ANCOVA.
+output: pdf_document
+---
+
+```{r "setup", include=FALSE}
+#This block of code will not appear in your knitted document
+#Setup paths for data and Rcode
+require("knitr")
+traindir <- "~/Google Drive/UVA/Courses/LSM/Fall2020/TrainData/"
+sourcedir <-"~/Google Drive/UVA/Courses/LSM/Fall2020/Source/"
+opts_knit$set(root.dir = sourcedir)
+opts_chunk$set(warning=FALSE)
+```
+
+Load data and combine data from 2001-2019 into totacts
+```{r}
+# Source AccidentInput
+source("AccidentInput.R")
+
+# you should have two data structures in working memory
+# First - a list of data frames for each year of accident data
+acts <- file.inputl(traindir)
+
+# Next a data frame with all accidents from all years from 2001 - 2018
+# with columns that are consistent for all of these years
+
+# Get a common set the variables
+
+comvar <- intersect(colnames(acts[[1]]), colnames(acts[[8]]))
+
+# the combined data frame
+totacts <- combine.data(acts, comvar)
+```
+
+Build a data frame with only extreme accidents for ACCDMG
+```{r}
+dmgbox <-boxplot(totacts$ACCDMG)
+xdmg <- totacts[totacts$ACCDMG > dmgbox$stats[5],]
+```
+
+Data cleaning 
+```{r}
+# Remove 9/11
+xdmg <- xdmg[-190,]
+
+##Remove duplicates
+xdmgnd <- xdmg[!(duplicated(xdmg[, c("INCDTNO", "YEAR", "MONTH", 
+                                     "DAY", "TIMEHR", "TIMEMIN")])),]
+
+# Reset rownames (observation #s) for sequential numbering- 
+# otherwise they will remain the #s from totacts
+rownames(xdmgnd) <- NULL
+```
+
+
+Build linear regression models in R: lm 
+
+Build 2 multiple linear regression models with the data fram xdmgnd: 
+xdmgnd.lm1  ACCDMG ~ TEMP + TRNSPD + TONS + CARS + HEADEND1
+xdmgnd.lm2  ACCDMG ~ TEMP + TONS + CARS 
+
+```{r}
+xdmgnd.lm1<-lm(ACCDMG ~ TEMP + TRNSPD  + CARS + HEADEND1, data=xdmgnd)
+xdmgnd.lm2<-lm(ACCDMG ~ TEMP + CARS , data=xdmgnd)
+```
+
+Display regression results for each model
+```{r}
+summary(xdmgnd.lm1)
+summary(xdmgnd.lm2)
+```
+
+Create models with interactions between all of the quantitative predictors ----
+```{r}
+xdmgnd.lm3<-lm(ACCDMG~(TEMP+TRNSPD+CARS+HEADEND1)^2,data=xdmgnd)
+summary(xdmgnd.lm3) 
+```
+
+Is this the complete second order model?
+
+I() allows your model to contain normal mathematical sysmbols 
+Create complete second order model           
+```{r}
+xdmgnd.lm4<-lm(ACCDMG~(TEMP+TRNSPD+CARS+HEADEND1)^2+I(TEMP^2)+I(TRNSPD^2)+I(CARS^2)+I(HEADEND1^2),data=xdmgnd)
+summary(xdmgnd.lm4)
+```
+
+How many parameters and coefficients are in each of the models?
+
+
+Create a stepwise regression model on xdmgnd.lm4
+```{r}
+xdmgnd.lm4.step <- step(xdmgnd.lm4)
+summary(xdmgnd.lm4.step)
+```
+
+partial F test
+```{r}
+anova(xdmgnd.lm3,xdmgnd.lm4)
+```
+
+Which model is better based on the partial F test, the larger or smaller?
+
+Interaction Plot Example
+```{r}
+trnspdbox<-boxplot(xdmgnd$TRNSPD)
+TRNSPD.factor<-xdmgnd$TRNSPD
+TRNSPD.factor[which(xdmgnd$TRNSPD<50)]<-'low train speed'
+TRNSPD.factor[which(xdmgnd$TRNSPD>=50)]<-'high train speed'
+TRNSPD.factor <- factor(TRNSPD.factor)
+```
+
+Create a derailment variable
+```{r}
+Derail <- rep(0, nrow(xdmgnd))
+Derail[which(xdmgnd$TYPE == 1)] <- 1 
+Derail <- as.factor(Derail)
+contrasts(Derail)
+```
+
+create an interaction plot for TRNSPD and Derailments
+```{r}
+interaction.plot(TRNSPD.factor,Derail, xdmgnd$ACCDMG)
+```
+
+
+
+Qualitative Variables
+Create a qualitative variable for Cause 
+```{r}
+Cause <- rep(NA, nrow(xdmgnd))
+##Miscellaneous
+Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "M")] <- "M"  
+##Track
+Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "T")] <- "T"  
+##Signal or communication
+Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "S")] <- "S"   
+##Human
+Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "H")] <- "H"  
+##Electrical or mechanical
+Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "E")] <- "E"  
+```
+
+# This new variable, Cause, has to be a factor
+```{r}
+Cause <- as.factor(Cause)
+```
+
+# Lets look at the default treatment coding
+```{r}
+contrasts(Cause)
+```
+
+# What is the base case for Cause?
+
+
+
+# Write a model to predict ACCDMG in terms of Cause 
+```{r}
+xdmgnd.lm5<-lm(ACCDMG~Cause,data=xdmgnd)
+summary(xdmgnd.lm5) 
+```
+
+# How do we interperet the model xdmgnd. lm5?
+
+
+
+#Chage based case to H ----
+```{r}
+contrasts(Cause)<-matrix(c(1,0,0,0,0, 0,0,1,0,0, 0,0,0,1,0,  0,0,0,0,1),nrow=5)
+colnames(contrasts(Cause)) <-matrix(c("E","M","S","T"),ncol=4)
+contrasts(Cause)
+```
+
+```{r}
+xdmgnd.lm6<-lm(ACCDMG~Cause,data=xdmgnd)
+summary(xdmgnd.lm6)
+```
+
+#How do we interperet the model xdmgnd.lm6?
+
+
+#More qualitative variables:
+```{r}
+xdmgnd.lm7<-lm(ACCDMG~as.factor(WEATHER),data=xdmgnd)
+summary(xdmgnd.lm7) #What is the base case?
+```
+
+***************************************** Exercise 1 *****************************************
+Recode the qualitative variable Weather using the categories in accident descriptions pdf document
+
+
+
+What is the base case?
+
+
+Build a model with the qualitative variable weather
+
+
+
+What is your conclusion?
+
+
+
+Build a new model to test the hypothesis: "Accidents of type derailment do not increase the severity of rail road accidents."
+ 
+
+
+
+What is the base case?
+
+
+
+
+What is your conclusion?
+
+
+
+ANCOVA           
+ 
+
+```{r}
+attach(xdmgnd) #attach the dataset to the R search path. 
+```
+
+# detach(xdmgnd) #remove it from the search path
+
+```{r}
+summary(ACCDMG) #now you can use variable names directly
+```
+
+Create 2 ANCOVA models:
+
+Build a main effects model Cause + TEMP + TRNSPD +  CARS + HEADEND1
+```{r}
+xdmgnd.lm1 <-lm(ACCDMG~Cause+TEMP + TRNSPD +  CARS + HEADEND1,data=xdmgnd)
+summary(xdmgnd.lm1)
+```
+
+Build a main effects + interaction model Cause + TEMP + TRNSPD + CARS + HEADEND1 
+```{r}
+xdmgnd.lm2<-lm(ACCDMG~(Cause+TEMP + TRNSPD + CARS + HEADEND1)^2,data=xdmgnd)
+summary(xdmgnd.lm2)
+```
+
+Perform a Partial F Test: xdmgnd.lm1 vs. xdmgnd.lm2
+```{r}
+anova(xdmgnd.lm1,xdmgnd.lm2)
+```
+
+Which model do you choose?
+
+
+Use stepwise regression on your main effects + interaction model xdmgnd.lm1
+```{r}
+xdmgnd.lm1.step <- step(xdmgnd.lm2)
+```
+
+What is your new model?
+```{r}
+summary(xdmgnd.lm1.step)
+```
+
+**************************************** Exercise 2 *****************************************
+Choose 1 of your project 1 hypotheses (or assignment 2) based on an actionable, 
+controllable variable.  Build a model with both qualitative
+and quantitative variables to test your hypothesis.  Make sure 
+to address the following steps:
+1.  Variable selection for linear models.
+2.  Treatment of categorical variables for your linear model.
+3.  Measure the performance of the models.
+4.  Adjust your models based on analytical and graphical diagnostics.
+5.  Reassess models based on adjustments.
+6.  Compare your best models.
+7.  Use your best model to reject or accept your hypothesis and provide a 
+    recommendation supported by statistical evidence.
+
+

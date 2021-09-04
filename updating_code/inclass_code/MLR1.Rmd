@@ -1,0 +1,268 @@
+---
+pdf_document: default
+title: "Multiple Linear Regression 1"
+abstract: |
+  This is the code for the first linear regression lesson.
+output: pdf_document
+---
+
+```{r "setup", include=FALSE}
+#This block of code will not appear in your knitted document
+#Setup paths for data and Rcode
+require("knitr")
+traindir <- "~/Google Drive/UVA/Courses/LSM/Fall2020/TrainData/"
+sourcedir <-"~/Google Drive/UVA/Courses/LSM/Fall2020/Source/"
+opts_knit$set(root.dir = sourcedir)
+opts_chunk$set(warning=FALSE)
+```
+
+Load data and combine data from 2001-2019 into totacts
+```{r}
+# Source AccidentInput
+source("AccidentInput.R")
+
+# you should have two data structures in working memory
+# First - a list of data frames for each year of accident data
+acts <- file.inputl(traindir)
+
+# Next a data frame with all accidents from all years from 2001 - 2018
+# with columns that are consistent for all of these years
+
+# Get a common set the variables
+
+comvar <- intersect(colnames(acts[[1]]), colnames(acts[[8]]))
+
+# the combined data frame
+totacts <- combine.data(acts, comvar)
+```
+
+Build a data frame with only extreme accidents for ACCDMG
+```{r}
+dmgbox <- dmgbox <-boxplot(totacts$ACCDMG)
+  
+ggplot(as.data.frame(totacts$ACCDMG), aes(x=totacts$ACCDMG)) + 
+geom_boxplot(col= "steelblue") + theme(plot.title = element_text(hjust = 0.5)) + coord_flip()
+
+xdmg <- totacts[totacts$ACCDMG > dmgbox$stats[5],]
+```
+
+Data cleaning 
+```{r}
+# Remove 9/11
+xdmg <- xdmg[-190,]
+
+##Remove duplicates
+xdmgnd <- xdmg[!(duplicated(xdmg[, c("INCDTNO", "YEAR", "MONTH", 
+                                     "DAY", "TIMEHR", "TIMEMIN")])),]
+
+# Reset rownames (observation #s) for sequential numbering- 
+# otherwise they will remain the #s from totacts
+rownames(xdmgnd) <- NULL
+```
+
+Setup categorical variables
+
+This new variable, Cause, has to be a factor
+```{r}
+xdmgnd$Cause <- rep(NA, nrow(xdmgnd))
+
+xdmgnd$Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "M")] <- "M"
+xdmgnd$Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "T")] <- "T"
+xdmgnd$Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "S")] <- "S"
+xdmgnd$Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "H")] <- "H"
+xdmgnd$Cause[which(substr(xdmgnd$CAUSE, 1, 1) == "E")] <- "E"
+
+xdmgnd$Cause <- factor(xdmgnd$Cause)
+```
+
+Setup the Type variable
+```{r}
+xdmgnd$Type <- factor(xdmgnd$TYPE, labels = c("Derailment", "HeadOn", "Rearend", "Side", "Raking", "BrokenTrain", "Hwy-Rail", "GradeX", "Obstruction", "Explosive", "Fire","Other","SeeNarrative"))
+```
+
+
+Possible predictors of damage	
+
+SPM
+Scatter plot matricies for quantitative predictors and single metric.
+```{r}
+source("SPM_Panel.R")
+library(GGally)
+ggpairs(xdmgnd[,c("ACCDMG", "TRNSPD", "CARS", "TIMEHR", "TEMP")])
+```
+
+PCA
+Principal components with the correlation matrix for extreme data with 1 metric and quantitative predictors.
+```{r}
+source("PCAplots.R")
+pred.pca <- princomp(xdmgnd[,c("ACCDMG", "TRNSPD", "CARS", "TIMEHR", "TEMP")], cor = T )
+```
+
+Which predictors are most correlated with accident damage?
+
+
+Categorical plots
+heatmap
+```{r}
+source("http://www.phaget4.org/R/myImagePlot.R")
+myImagePlot(table(xdmgnd$Cause, xdmgnd$Type), title = "No. of Accidents by Cause and Type of Accident")
+```
+
+Which accident causes and types have the highest numbers of extreme accidents?
+
+Type & TRNSPD
+```{r}
+library(lattice)
+qplot(log(ACCDMG), TRNSPD, data = xdmgnd) +  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) + facet_wrap(~ Type, scales = "free")
+```
+
+Cause & TRNSPD
+```{r}
+qplot(log(ACCDMG), TRNSPD, data = xdmgnd) +  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) + facet_wrap(~ Cause, scales = "free")
+```
+
+What is notable about the relationship between train speed and accident
+damages for different accident causes and types?
+
+
+Cause X TYPE and TRNSPD
+```{r}
+qplot(log(ACCDMG), TRNSPD, data = xdmgnd) +  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) + facet_wrap(~ Cause * Type, scales = "free")
+```
+
+Create the Derail variable & 
+then look at interactions with Cause
+```{r}
+xdmgnd$Derail <- (xdmgnd$Type == "Derailment")
+```
+
+Plot xy with interactions of Derail and Cause
+```{r}
+qplot(log(ACCDMG), TRNSPD, data = xdmgnd) +  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) + facet_wrap(~ Cause * Derail, scales = "free")
+```
+
+Create a Freight variable
+then look at interactions with Cause 
+```{r}
+xdmgnd$Freight <- (xdmgnd$TYPEQ == "1")
+```
+
+Interaction plots
+
+
+Get interaction plot for Derail and Cause
+```{r}
+ggplot() +
+  aes(x = xdmgnd$Derail, y = log(xdmgnd$ACCDMG), group = xdmgnd$Cause, color = xdmgnd$Cause) +
+  stat_summary(fun= mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line")
+
+```
+
+
+Interaction plots with quantitative variables
+```{r}
+Speed <- cut(xdmgnd$TRNSPD, c(min(xdmgnd$TRNSPD),15,max(xdmgnd$TRNSPD)), include.lowest = T, labels = c("low speed", "high speed"))
+
+Cars <- cut(xdmgnd$CARS, c(min(xdmgnd$CARS),1,max(xdmgnd$CARS)), include.lowest = T, labels = c("low hzd", "high hzd"))
+
+Tons <- cut(xdmgnd$TONS, c(min(xdmgnd$TONS),median(xdmgnd$TONS),max(xdmgnd$TONS)), include.lowest = T, labels = c("low tons", "high tons"))
+
+```
+
+Plot interaction between Speed and Cars
+```{r}
+# First Option with seeing points
+qplot(x = TRNSPD, y = log(ACCDMG), data = xdmgnd, colour = Cars) +
+  geom_point(colour = "gray")+
+  geom_smooth(method = "lm") 
+
+# Second Option
+
+ggplot() +
+  aes(x = Speed, y = log(xdmgnd$ACCDMG), group = Cars, color = Cars) +
+  stat_summary(fun.y = mean, geom = "point") +
+  stat_summary(fun.y = mean, geom = "line")
+
+```
+
+Plot interaction between Freight and Speed
+```{r}
+ggplot() +
+  aes(x = xdmgnd$Freight, y = log(xdmgnd$ACCDMG), group = Speed, color = Speed) +
+  stat_summary(fun.y = mean, geom = "point") +
+  stat_summary(fun.y = mean, geom = "line")
+```
+
+Plot interaction between Derail and Speed
+```{r}
+ggplot() +
+  aes(x = xdmgnd$Derail, y = log(xdmgnd$ACCDMG), group = Speed, color = Speed) +
+  stat_summary(fun.y = mean, geom = "point") +
+  stat_summary(fun.y = mean, geom = "line")
+```
+
+Plot interaction between Tons and Speed
+```{r}
+ggplot() +
+  aes(x = Speed, y = log(xdmgnd$ACCDMG), group = Tons, color = Tons) +
+  stat_summary(fun.y = mean, geom = "point") +
+  stat_summary(fun.y = mean, geom = "line")
+```
+
+
+
+
+How do these results inform your hypotheses?
+Use the multivariate visualiztions as evidence to form at least 1 hypothesis.
+
+
+Linear Models
+
+Build linear regression models with different combinations of quantitative predictors to provide evidence for your hypothesis
+
+Single predictor
+```{r}
+xdmgnd.lm1<-lm(ACCDMG~TEMP,data=xdmgnd)
+summary(xdmgnd.lm1)
+names(xdmgnd.lm1)
+coef(xdmgnd.lm1)
+sum(xdmgnd.lm1$res^2)
+```
+
+Two predictors
+```{r}
+xdmgnd.lm2<-lm(ACCDMG~TEMP+TRNSPD,data=xdmgnd)
+summary(xdmgnd.lm2)
+names(xdmgnd.lm2)
+coef(xdmgnd.lm2)
+```
+
+Three predictors
+```{r}
+xdmgnd.lm3<-lm(ACCDMG~TEMP+TRNSPD+CARS,data=xdmgnd)
+summary(xdmgnd.lm3)
+coef(xdmgnd.lm3)
+```
+
+
+Interperet your model coefficients.  Do they make sense?
+
+
+
+Interperet your developed models using the model utility test and t-test.
+
+
+
+Write out the null and alternative hypothesis for each of the tests.  
+
+
+
+Do you reject or fail to reject H0 for each test?
+
+
+Now repeat for TOTKLD + TOTINJ
