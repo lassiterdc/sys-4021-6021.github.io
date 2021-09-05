@@ -1,0 +1,182 @@
+---
+title: "lab1_qaqc"
+author: "Daniel Lassiter"
+date: "9/2/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# load packages and files
+```{r}
+library(tidyverse)
+library(GGally)
+library(psych)
+
+train_data <- "data/totacts.csv"
+
+totacts <- read_csv(train_data)
+```
+# part 2
+## question 2
+```{r}
+ggplot(totacts, mapping=aes(HIGHSPD)) +
+  geom_histogram(binwidth=10, boundary=0)
+```
+
+## question 3
+```{r}
+ggplot(totacts, mapping=aes(x=EQPDMG)) +
+  geom_boxplot() +
+  facet_wrap(~YEAR)
+```
+
+## question 4
+```{r}
+ggplot(totacts, mapping=aes(x=TOTKLD)) +
+  geom_boxplot() +
+  facet_wrap(~YEAR)
+
+totacts %>% group_by(YEAR) %>% summarize(max = max(TOTKLD)) %>% 
+  arrange(desc(max))
+```
+
+## question 5
+```{r}
+ggplot(totacts, mapping=aes(x=TRKDMG)) +
+  geom_boxplot() +
+  facet_wrap(~YEAR)
+
+totacts %>% group_by(YEAR) %>% summarize(max = max(TRKDMG)) %>% 
+  arrange(desc(max))
+```
+
+## question 6
+
+```{r}
+ggplot(totacts, mapping=aes(x=TOTINJ)) +
+  geom_boxplot() +
+  facet_wrap(~YEAR)
+
+totacts %>% group_by(YEAR) %>% summarize(max = max(TOTINJ)) %>% 
+  arrange(desc(max))
+```
+
+## question 7
+```{r}
+totacts %>% filter(TOTINJ == max(TOTINJ)) %>% select(INCDTNO)
+```
+
+## question 8
+```{r}
+ggplot(totacts, mapping=aes(x=CARSDMG )) +
+  geom_boxplot() +
+  facet_wrap(~YEAR)
+
+totacts %>% group_by(YEAR) %>% summarize(max = max(CARSDMG )) %>% 
+  arrange(desc(max))
+```
+
+## question 9
+```{r}
+# sturges breaks
+breaks <- pretty(range(totacts$TEMP),
+                 n = nclass.Sturges(totacts$TEMP),
+                 min.n = 1)
+
+ggplot(totacts, mapping=aes(TEMP)) +
+  geom_histogram(breaks = breaks)
+```
+
+# part 3
+## question 1
+```{r}
+cor(totacts$TRKDMG, totacts$ACCDMG)
+```
+
+## question 2
+```{r}
+df <- totacts %>% select("TRKDMG", "EQPDMG", "ACCDMG","TOTINJ", "TOTKLD")
+
+pairs.panels(df)
+```
+
+# part 4
+
+## question 1
+```{r}
+totacts %>% filter(ACCDMG==max(ACCDMG))
+```
+
+## question 2
+```{r}
+totacts %>% filter(ACCDMG==max(ACCDMG)) %>% select(TOTKLD)
+totacts %>% filter(ACCDMG==max(ACCDMG)) %>% select(RAILROAD)
+```
+
+## question 3
+```{r}
+totacts %>% filter(ACCDMG==max(ACCDMG)) %>% select(ACCDMG)
+```
+
+## question 4
+```{r}
+totacts %>% filter(TOTKLD==max(TOTKLD)) %>% select(YEAR)
+```
+
+## question 5
+```{r}
+totacts %>% filter(TOTKLD==max(TOTKLD)) %>% select(TOTKLD)
+```
+
+## question 6
+```{r}
+totacts %>% filter(TOTINJ==max(TOTINJ)) %>% select(TOTINJ)
+```
+
+## question 7
+```{r}
+totacts %>% filter(ACCDMG > 1.5e6) %>% summarize(count=n())
+```
+
+## question 8
+```{r}
+totacts %>% filter(TOTKLD > 0) %>% summarize(count=n())
+```
+
+## question 9
+```{r}
+# totacts$TYPEQ <- as.numeric(totacts$TYPEQ)
+# 
+# # Now convert to factor- use actual categories from data dictionary to be more informative
+# totacts$TYPEQ <- factor(totacts$TYPEQ, labels = c("Freight", "Passenger", "Commuter", "Work",  "Single", "CutofCars", "Yard", "Light", "Maint"))
+
+totacts$TYPE <- factor(totacts$TYPE, labels = c("Derailment", "HeadOn", "Rearend", "Side", "Raking", "BrokenTrain", "Hwy-Rail", "GradeX", "Obstruction", "Explosive", "Fire","Other","SeeNarrative" ))
+
+# Use table() to see the frequencies
+
+ggplot(data = totacts, mapping=aes(TYPE)) +
+  geom_bar()
+```
+
+## question 10
+```{r}
+# totacts %>% group_by(CAUSE) %>% summarise(count=n()) %>% arrange(desc(count))
+totacts$Cause <- rep(NA, nrow(totacts))
+
+totacts$Cause[which(substr(totacts$CAUSE, 1, 1) == "M")] <- "(M) Miscellaneous Causes Not Otherwise Listed"
+totacts$Cause[which(substr(totacts$CAUSE, 1, 1) == "T")] <- "(T) Track, Roadbed and Structures"
+totacts$Cause[which(substr(totacts$CAUSE, 1, 1) == "S")] <- "(S) Signal and Communication"
+totacts$Cause[which(substr(totacts$CAUSE, 1, 1) == "H")] <- "(H) Train operation - Human Factors"
+totacts$Cause[which(substr(totacts$CAUSE, 1, 1) == "E")] <- "(E) Mechanical and Electrical Failures"
+
+# This new variable, Cause, has to be a factor
+totacts$Cause <- factor(totacts$Cause)
+
+ggplot(data = totacts, mapping=aes(Cause)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+```
+
